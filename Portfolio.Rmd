@@ -1,7 +1,4 @@
 XIAOYU WANG
-UID:604327727
-C183 Project
-
 Part A：
 ```{r}
 library(stockPortfolio)
