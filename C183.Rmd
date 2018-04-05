@@ -1,0 +1,178 @@
+XIAOYU WANG
+UID:604327727
+C183 Project
+
+Part A：
+```{r}
+library(stockPortfolio)
+ticker<-c("NVDA","NVEC","SIGM","SLAB","MCHP",
+          "COKE","MNST","PEP","LBIX","JSDA",
+          "PETM","PERF","HOLL","ODP","OUTR",
+          "FCVA","BAC","JPM","KEY","WFC",
+          "BIOS","BMY","NBIX","JNJ","NVGN",
+          "^GSPC")
+length(ticker)
+```
+
+(1) Assume short sales are allowed. Choose an appropriate value of Rf to find the composition of the point of tangency (use the classical Markowitz model). Also compute the expected return and standard deviation of the point of tangency. Draw the line and show the point of tangency on the line.
+
+```{r}
+gr <- getReturns(ticker, start="2006-12-31", end="2011-12-31")
+names(gr)
+m1 <- stockModel(gr, model="none", Rf = -0.002, drop=26)
+tangent <- optimalPort(m1)
+tangent
+portPossCurve(m1, ylim=c(-0.02, 0.1), xlim=c(0, 0.20))
+portCloud(m1, add=TRUE)
+tangent$risk
+tangent$R
+points(tangent$risk, tangent$R, pch=19, col="green")
+segments(0, -0.002, 2*tangent$risk, -0.002 + (tangent$R + 0.002)*2)
+```
+
+(2) Refer to part (1). Choose two values of Rf to trace out the efficient frontier.
+
+```{r}
+tangent2 <- optimalPort(stockModel(gr, model="none", Rf = 0.002 , drop=26))
+x1 <- seq(-5, 5, 0.01)
+x2 <- 1 - x1
+rr <- x1 * tangent$R + x2 * tangent2$R
+cov_var <- var(gr$R[, -26])
+risk2 <- sqrt(x1^2*tangent$risk^2 + x2^2*tangent2$risk^2 + 2*x1*x2*(tangent$X %*% cov_var %*% tangent2$X))
+plot(rr ~ risk2, main="Efficient frontier", xlab="Risk", ylab="Expected Return",ylim=c(-0.02, 0.08), xlim=c(0, 0.10), type="l")
+pp <- as.data.frame(cbind(risk2, rr))
+ef <- pp[pp$rr >= pp$rr[which(risk2==min(risk2))], ]
+points(ef$rr ~ ef$risk2, col="blue", type="l", lwd=5)
+```
+
+(3) Equally allocate your funds into your stocks. Calculate the expected return and standard deviation of this portfolio (use historical means and standard deviations).
+```{r}
+ea_f <- rep(1, 25)/25
+R_bar <- as.data.frame(colMeans(gr$R[ ,-26]))
+var_cov <- cov(gr$R[ ,-26])
+
+ea_R <- t(R_bar) %*% ea_f
+ea_R
+
+ea_SD <- sqrt(t(ea_f) %*% var_cov %*% ea_f)
+ea_SD
+```
+
+(4) Assume that the single index model holds and that risk-free lending and borrowing exists. Use the excess return to beta (you can work with unadjusted or adjusted betas) ratio to find:
+```{r}
+#a. The composition of the optimum portfolio, its expected return, and its standard deviation when short sales are not allowed.
+
+sim <- stockModel(gr, model="SIM", Rf = -0.002, index = 26, shortSelling = FALSE)
+sim_r1 <- optimalPort(sim)
+sim_r1
+
+#b. The alpha and beta of the optimum portfolio of part (a).
+t(sim$alpha) %*% sim_r1$X
+t(sim$beta) %*% sim_r1$X
+
+#c. Repeat (a) and (b) when short sales are allowed.
+sim2 <- stockModel(gr, model="SIM", Rf = -0.002, index=26)
+sim_r2 <- optimalPort(sim2); sim_r2
+t(sim2$alpha) %*% sim_r2$X
+t(sim2$beta) %*% sim_r2$X
+```
+
+(5) Use the constant correlation model and the same risk-free rate as in part (4). Based on the excess return to standard deviation ratio find:
+```{r}
+# a. The composition of the optimum portfolio, its expected return, and its standard deviation when short sales are not allowed.
+ccm <- stockModel(gr, model="CCM", Rf = -0.002, drop=26, shortSelling=FALSE)
+ccm_r1 <- optimalPort(ccm); ccm_r1
+
+# b. Repeat (a) when short sales are allowed.
+ccm2 <- stockModel(gr, model="CCM", Rf = -0.002, drop=26)
+ccm_r2 <- optimalPort(ccm2); ccm_r2
+```
+
+
+(6) Use the multigroup model, short sales allowed, and the same risk free rate as in (4) and (5), to find the composition of the optimum portfolio, its expected return, and its standard deviation.
+```{r}
+ind <- c(rep("Semiconductor ", 5),
+         rep("Beverages - Soft Drinks", 5),
+         rep("Specialty Retail", 5),
+         rep("Money Center Banks", 5),
+         rep("Drug Manufacturers", 5))
+multi <- stockModel(gr, model="MGM", Rf = -0.002, drop=26, industry=ind)
+multi_r <- optimalPort(multi); multi_r
+```
+
+(7) Place all the stocks you have used and all the portfolios you have constructed on the space expected return against standard deviation.
+```{r}
+# Markowitz Model
+plot(tangent, ylim=c(-0.02, 0.08), xlim=c(0, 0.15))
+text(tangent$risk, tangent$R+0.002 , "Markowitz Model", cex=0.8)
+portPossCurve(m1, add=TRUE)
+# Equally allocate
+points(ea_R ~ ea_SD, pch=19, col="dark grey")
+text(ea_SD, ea_R+0.002, "Equally allocation", col="dark grey", cex=0.8)
+# sim/no short
+points(sim_r1$R ~ sim_r1$risk, pch=19, col="blue")
+text(sim_r1$risk, sim_r1$R+0.003, "Single Index Model(No Short)", col="blue", cex=0.8)
+# sim/short
+points(sim_r2$R ~ sim_r2$risk, pch=19, col="red")
+text(sim_r2$risk, sim_r2$R+0.003, "Single Index Model", col="red", cex=0.8)
+# ccm/no short
+points(ccm_r1$R ~ ccm_r1$risk, pch=19, col="green")
+text(ccm_r1$risk, ccm_r1$R+0.007, "Constant Correlation Model(No short)", col="green", cex=0.8)
+# ccm/short
+points(ccm_r2$R ~ ccm_r2$risk, pch=19, col="orange")
+text(ccm_r2$risk, ccm_r2$R+0.009, "Constant Correlation Model", col="orange", cex=0.8)
+# mig
+points(multi_r$R ~ multi_r$risk, pch=19, col="purple")
+text(multi_r$risk, multi_r$R-0.003, "Multi Group Model", col="purple", cex=0.8)
+```
+
+Part B: Compute now the monthly returns for each stock for the period 31-Dec-2011 to 31-Mar-2014 and use them to compute the monthly return for each of the following portfolios that you have constructed above:
+
+```{r,warning=FALSE}
+gr2 <- getReturns(ticker, start="2011-12-31", end="2014-03-31")
+
+# a. Equal allocation (part 3).
+a <- gr2$R[, -26] %*% ea_f
+# b. Single index model with no short sales allowed (part 4a).
+b <- gr2$R[, -26] %*% sim_r1$X
+
+# c. A portfolio that consists of 50% of the portfolio of part 4a and 50% of the risk free asset.
+c <- gr2$R[, -26] %*% sim_r1$X *.5 - .005 * .5
+
+# d. Constant correlation model with no short sales allowed (part 5a).
+d <- gr2$R[, -26] %*% ccm_r1$X
+
+# e.Multigroup model (part 6).
+e <- gr2$R[, -26] %*% multi_r$X
+
+table <- cbind(a,b,c,d,e)
+colnames(table) <- c("EA", "SIM_N", "SIM_50%50%","CCM_N","MIG")
+table
+
+tp_a <- testPort(gr2$R[, -26], X=rep(1, 25)/25)
+tp_b <- testPort(gr2, sim_r1)
+tp_c <- testPort(gr2, ccm_r1)
+tp_d <- testPort(gr2, multi_r)
+
+plot(tp_a, lty=1, ylim=c(0.5, 2.0), lwd=2, xlab="Time Period 31-Jan-2011 to 31-March-2014",  ylab="Return (in Percentage)", main="Return against Time Period") # Equal Allocation
+lines(tp_b, lty=2, col="blue", lwd=2) # SIM
+lines(cumprod(1+rev(c)), lty=3, col="orange", lwd=2) # SIM 50%-50%
+lines(tp_c, lty=4, col="green", lwd=2) # CCM
+lines(tp_d, lty=5, col="purple", lwd=2) # MIG
+
+lines(cumprod(1+rev(gr2$R[, 26])), col="red", lwd=2, lty=1) # S&P 500
+legend("topleft", lty=c(1:5,1), c("Equal Allocation", "SIM_NS", "50%SIM & 50%Rf", "CCM_NS", "MIG_S", "S&P500"), col=c("black", "blue", "orange", "green", "purple", "red"), cex=0.9)
+```
+
+average return of each portfolio in this period:
+```{r}
+ExReturns <- colMeans(cbind(a, b, c, d, e))
+names(ExReturns) <- c("Eq. Alloc.", "SIM_NS", "50%S_NS&50%Rf", "CCM_NS", "MIG_S"); ExReturns
+max(ExReturns); min(ExReturns)
+mean(gr2$R[, 26])
+```
+
+Based on the period 12/31/2006-12/31/2011, we see that SIM and CCM with short sell not allowed have lower return and risk. But when the short sell allowed, the risk and return are incresed. The EA model is the worst model because it has lowest return but highest risk. 
+
+For the future data(Dec/31/2011-Mar/31/2014), if we split the whole period to three, in the first period MIG, gives us the highest return. In the second and third period, the MIG decrease to the bottom and EA increases to the top. Overall, the combination of half SIM_NS and half Risk free model has the lowest return, and EA has the highest return. On the other hand, the return of EA model has huge diffienece between the period of before and after 2011, this telling me EA model is not stable. In this case, i will chose a stable model or change some stocks. Compare to the S&P 500 index, the return of SIM and CCM model are mostly close to the S&P 500.
+
